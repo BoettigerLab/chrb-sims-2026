@@ -86,6 +86,21 @@ class SimConfig(BaseModel, extra="forbid"):
         le=1,
         description="Probability of cohesin stall upon colliding other cohesin molecules.",
     )
+    cohesin_collision: Literal["sticky", "share_no_bypass"] = Field(
+        "sticky",
+        description=(
+            "How a cohesin arm meets another cohesin. 'sticky' (the original "
+            "rule): within 1 monomer of another arm ahead it stalls with "
+            "cohesin_stall_probability, and the stall clears only at random "
+            "(mean cohesin_stall_time rounds), even if the blocker has left; "
+            "after a release the arm can step past, so bypass is possible. "
+            "'share_no_bypass': re-checked at every unit step; an arm may step "
+            "onto the monomer of an oncoming arm (head-on: the two share it) but "
+            "never past it, stays one monomer behind a same-direction arm, and "
+            "resumes as soon as the blocker moves or unbinds. Never bypasses; "
+            "cohesin_stall_time and cohesin_stall_probability are unused."
+        ),
+    )
     num_cohesin: int = Field(1000, ge=0, description="Number of cohesin in the system.")
     cohesin_bound_lifetime: float = Field(
         100000,

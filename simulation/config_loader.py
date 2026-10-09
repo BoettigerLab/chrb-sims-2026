@@ -20,6 +20,10 @@ _BOOKKEEPING_FIELDS = {
 }
 
 
+# cohesin_collision was added 2026-10-09; every earlier run used the sticky rule.
+_ADDED_WITH_OLD_BEHAVIOUR_AS_DEFAULT = {"cohesin_collision": "sticky"}
+
+
 def _apply_overrides(data: Dict[str, Any], overrides: List[str]) -> Dict[str, Any]:
     """
     Overrides are k=v strings. Values parsed with YAML, so lists/tuples/numbers work:
@@ -70,6 +74,10 @@ def check_run_dir(cfg: SimConfig, run_dir: Path) -> None:
     if not has_checkpoints:
         return
     old = json.loads(old_path.read_text())
+    # Fields added after a folder was made, whose default reproduces exactly what
+    # those older runs did, so their absence is not a change.
+    for k, v in _ADDED_WITH_OLD_BEHAVIOUR_AS_DEFAULT.items():
+        old.setdefault(k, v)
     new = json.loads(cfg.model_dump_json())
     changed = sorted(
         k

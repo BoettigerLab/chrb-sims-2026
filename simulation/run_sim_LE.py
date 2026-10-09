@@ -288,9 +288,39 @@ class SMC:
         # This might cause the accumulation of Condensin at the end and blow up the simulation
 
 
+@njit
+def _share_blocked(SMCs, i):
+    """cohesin_collision = 'share_no_bypass': may SMC i's arms step this unit step?
+
+    Right arm (moving right) is blocked when another bound SMC has
+      - its LEFT arm on the same monomer (head-on: they share it, neither passes),
+      - its RIGHT arm one monomer ahead (same direction: stay one behind), or
+      - its RIGHT arm on the same monomer and a lower index (tie-break for the
+        rare case of loading onto an occupied monomer).
+    The left arm is the mirror image. Re-evaluated at every unit step, so an
+    arm resumes as soon as its blocker moves or unbinds; nothing is sticky.
+    """
+    s = SMCs[i]
+    bl = False
+    br = False
+    for j in range(len(SMCs)):
+        if j == i:
+            continue
+        o = SMCs[j]
+        if not o.bound:
+            continue
+        if o.l_pos == s.r_pos or o.r_pos == s.r_pos + 1 or (o.r_pos == s.r_pos and j < i):
+            br = True
+        if o.r_pos == s.l_pos or o.l_pos == s.l_pos - 1 or (o.l_pos == s.l_pos and j < i):
+            bl = True
+    return bl, br
+
+
 @njit(parallel=False)  # Sometimes segfaults if run in paralell...
-def update_SMC_sim(SMCs: list):
+def update_SMC_sim(SMCs: list, share: bool = False):
     # Runs every SMC simulation step, updates all SMCs and barriers, checks for potential interactions.
+    # share=True: cohesin_collision = 'share_no_bypass' (see _share_blocked);
+    # the sticky SMC-SMC stall block below is then skipped. CTCF is unchanged.
     # int64, matching res_loop_pos and the int32 LEFPositions h5 downstream.
     # This was float64, which fed a float into an integer bond pipeline.
     loop_pos = -np.ones(
@@ -317,7 +347,11 @@ def update_SMC_sim(SMCs: list):
         for k in range(max(1, n_max)):
             capture_dist = 1
             if s.bound:
-                s.walk(k < n_l, k < n_r)
+                if share:
+                    bl, br = _share_blocked(SMCs, i)
+                    s.walk(k < n_l and not bl, k < n_r and not br)
+                else:
+                    s.walk(k < n_l, k < n_r)
 
             if s.bound:  # Complex has to be bound to form a loop
                 loop_pos[i, 0] = s.l_pos
@@ -394,6 +428,8 @@ def update_SMC_sim(SMCs: list):
                                 s.CTCF_stall_time_r = curr_ctcf_stall_time
 
                     for j, other_s in enumerate(SMCs):
+                        if share:  # SMC-SMC collisions handled in _share_blocked
+                            break
                         if other_s.bound:
                             if j == i:
                                 continue
@@ -505,18 +541,19 @@ def simulate_LE(
     """
     SMC_props = []
     SMCs = init_SMC_sim(cfg)
+    share = cfg.cohesin_collision == "share_no_bypass"
 
     for i in tqdm(
         range(cfg.num_LE_steps_init)
     ):  # Take the initialization steps, do not record loop positions.
-        update_SMC_sim(SMCs)
+        update_SMC_sim(SMCs, share)
 
     res_loop_pos = np.zeros(
         (cfg.num_LE_steps, cfg.num_cohesin, 2), dtype=np.int64
     )  # Bond array.
 
     for j in tqdm(range(cfg.num_LE_steps)):
-        loop_pos = update_SMC_sim(SMCs)  # Calculate loops/bonds from simulation
+        loop_pos = update_SMC_sim(SMCs, share)  # Calculate loops/bonds from simulation
         res_loop_pos[j] = loop_pos.copy()  # Record bonds
         SMC_props.append(
             [
