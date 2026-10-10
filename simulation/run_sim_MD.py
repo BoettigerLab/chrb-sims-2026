@@ -358,6 +358,8 @@ def simulate_MD(cfg: SimConfig, run_dir: Path):
         )  # TODO: change this to subsampling ratio variable
 
     data = _initial_conformation(initial_conformation, N, density)
+    if cfg.confinement is not None:  # centre the start on the confining sphere (at the origin)
+        data = data - data.mean(axis=0)
 
     # Save the initial conformation
     init_conformation_fpath = base_dir / "init_conformation.npy"
@@ -502,7 +504,10 @@ def simulate_MD(cfg: SimConfig, run_dir: Path):
 
         if cfg.confinement is not None:
             if cfg.confinement == "spherical":
-                a.add_force(forces.spherical_confinement(a, density=density))
+                if cfg.confinement_radius is not None:
+                    a.add_force(forces.spherical_confinement(a, r=cfg.confinement_radius))
+                else:
+                    a.add_force(forces.spherical_confinement(a, density=density))
 
         # ------------ initializing milker; adding bonds ---------
         # copied from addBond
@@ -562,6 +567,8 @@ def simulate_MD(cfg: SimConfig, run_dir: Path):
                 try:
                     if i > 0:
                         data = _initial_conformation(initial_conformation, N, density)
+                        if cfg.confinement is not None:  # centre on the confining sphere
+                            data = data - data.mean(axis=0)
                         np.save(init_conformation_fpath, data)
                         a.set_data(
                             data, center=True

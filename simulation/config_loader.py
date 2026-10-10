@@ -20,8 +20,9 @@ _BOOKKEEPING_FIELDS = {
 }
 
 
-# cohesin_collision was added 2026-10-09; every earlier run used the sticky rule.
-_ADDED_WITH_OLD_BEHAVIOUR_AS_DEFAULT = {"cohesin_collision": "sticky"}
+# cohesin_collision was added 2026-10-09 (earlier runs: sticky rule);
+# confinement_radius 2026-10-10 (earlier runs: radius from density).
+_ADDED_WITH_OLD_BEHAVIOUR_AS_DEFAULT = {"cohesin_collision": "sticky", "confinement_radius": None}
 
 
 def _apply_overrides(data: Dict[str, Any], overrides: List[str]) -> Dict[str, Any]:

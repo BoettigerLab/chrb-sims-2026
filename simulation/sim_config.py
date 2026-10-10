@@ -219,6 +219,16 @@ class SimConfig(BaseModel, extra="forbid"):
     confinement: Optional[Literal["spherical"]] = Field(
         None, description="Confinement. Support None and spherical."
     )
+    confinement_radius: Optional[float] = Field(
+        None,
+        gt=0,
+        description=(
+            "Radius of the spherical confinement, in bond lengths. None (default) "
+            "keeps the old behaviour: radius set from `density`, "
+            "(3 N / (4 pi density))^(1/3). With confinement, the starting chain is "
+            "centred on the sphere's centre (the origin)."
+        ),
+    )
     PBC_box: Literal[True, False] = Field(
         False, description="The size of periodic boundary condition."
     )
