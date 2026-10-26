@@ -29,6 +29,7 @@ spec_smc = [
     ("N_beads", types.int64),
     ("SMC_type", types.int64),
     ("bound_lifetime", types.int64),
+    ("stalled_bound_lifetime", types.float64),
     ("unbound_lifetime", types.int64),
     ("SMC_crash_lifetime", types.float64),  # a 1d array
     ("extrusion_sided", types.int64),
@@ -70,6 +71,7 @@ class SMC:
         self,
         N_beads: int,
         bound_lifetime: float,
+        stalled_bound_lifetime: float,
         unbound_lifetime: float,
         SMC_crash_lifetime: float,
         SMC_crash_prob: float,
@@ -89,6 +91,7 @@ class SMC:
         )  # Rate of extrusion. If 1 or more, step every increment with the given distance (must be integers). If less than one, stochastically step only in certain increments matching average extrusion rate.
         self.N_beads = N_beads  # The length of the simulated polymer.
         self.bound_lifetime = bound_lifetime
+        self.stalled_bound_lifetime = stalled_bound_lifetime
         self.unbound_lifetime = unbound_lifetime
         self.SMC_crash_prob = SMC_crash_prob
         self.cohesin_loading_probability_list = cohesin_loading_probability_list
@@ -164,9 +167,15 @@ class SMC:
             elif self.draw_random() <= 1 / self.current_lifetime:
                 self.bind()
         elif self.bound:  # and (self.age > self.current_lifetime): #Unbinding event
-            # if self.draw_random() <= 1/self.current_lifetime
+            # An extruder with either arm held at a CTCF site unbinds on
+            # stalled_bound_lifetime instead (protection from unloading). Still
+            # one draw per round, so stalled == bound lifetime reproduces the
+            # old random stream exactly.
+            life = self.current_lifetime
+            if self.CTCF_bound_l or self.CTCF_bound_r:
+                life = self.stalled_bound_lifetime
             if (
-                self.draw_random() <= 1 / self.current_lifetime
+                self.draw_random() <= 1 / life
             ):  # To make sure that its only unbind when lifetime is less than simulation time
                 self.unbind()
             else:
@@ -495,6 +504,11 @@ def init_SMC_sim(cfg: SimConfig) -> List[SMC]:
                 SMC_crash_lifetime=cfg.cohesin_stall_time,
                 SMC_crash_prob=cfg.cohesin_stall_probability,
                 bound_lifetime=cfg.cohesin_bound_lifetime,
+                stalled_bound_lifetime=(
+                    cfg.cohesin_bound_lifetime
+                    if cfg.cohesin_stalled_bound_lifetime is None
+                    else cfg.cohesin_stalled_bound_lifetime
+                ),
                 unbound_lifetime=cfg.cohesin_unbound_lifetime,
                 extrusion_sided=cfg.extrusion_side,
                 # Every dtype below is explicit. np.array() infers a dtype from

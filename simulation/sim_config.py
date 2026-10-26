@@ -107,6 +107,15 @@ class SimConfig(BaseModel, extra="forbid"):
         ge=1,
         description="Expected number of timesteps by which cohesin are bound. Must be at least 1.",
     )
+    cohesin_stalled_bound_lifetime: Optional[float] = Field(
+        None,
+        ge=1,
+        description=(
+            "Expected bound lifetime, in timesteps, of a cohesin with either arm held "
+            "at a CTCF site (protection from unloading). None = cohesin_bound_lifetime, "
+            "i.e. stalled and moving cohesin unload alike."
+        ),
+    )
     cohesin_unbound_lifetime: float = Field(
         1,
         ge=1,
