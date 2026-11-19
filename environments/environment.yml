@@ -1,0 +1,28 @@
+# Minimal environment for the chrb manuscript simulations.
+# Versions are those imported by the runs (Python 3.8.18, OpenMM 8.0.0 with CUDA 10.2, numba 0.58.0, pydantic 2.10.6),
+# except numba 0.58.1, the nearest conda-forge build for Python 3.8.
+# Create:   conda env create -f environments/environment.yml
+# CUDA: conda-forge picks a cudatoolkit for openmm; the runs used cudatoolkit 10.2 (NVIDIA driver 497.09).
+#       If your driver is older than the toolkit chosen, add e.g. "cudatoolkit=10.2" below.
+# polychrom: put the polychrom source folder on PYTHONPATH (see README_chrb_manuscript.md); the simulation does
+#       not use polychrom's compiled extension.
+name: chrb-sims
+channels:
+  - conda-forge
+dependencies:
+  - python=3.8
+  - numpy=1.24.3
+  - scipy=1.10.1
+  - numba=0.58
+  - openmm=8.0.0
+  - h5py=3.9.0
+  - pandas=2.0.3
+  - pyyaml=6.0.1
+  - matplotlib=3.7.2
+  - tqdm
+  - joblib
+  - six
+  - pytest
+  - pip
+  - pip:
+      - pydantic==2.10.6

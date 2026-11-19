@@ -1,0 +1,57 @@
+# chrb manuscript, condition: wapl2/+ ΔTether
+# Run:  python simulation/main.py --config examples/chrb_manuscript/config_wapl_dTether.yaml
+# Positions are monomers (0-based). Enhancer readout E = 260, promoter readout P = 504.
+# One LE step = one saved frame; the paper maps 10 frames to 1 min (frame 0 = start of nc14, 450 = gastrulation).
+
+# ---- Bookkeeping (change freely) -------------------------------------------
+out_dir: ./output
+condition_name: chrb_wapl_dTether
+start_idx_replicate: 0
+num_replicates: 2
+backend: local
+gpu_device: "0"                  # OpenMM's CUDA device index
+plot_LE: false
+
+# ---- Polymer -----------------------------------------------------------------
+num_monomers: 757
+angle_k: 0.5                     # bending stiffness, kT
+repulsion: 4                     # soft-core excluded volume, kT
+attraction_radius: 1.5           # range of the tether attraction, monomer diameters
+attraction_energy: 0             # no attraction between other monomers
+confinement: spherical
+confinement_radius: 30           # monomer diameters
+PBC_box: false
+density: 0.1                     # not used with spherical confinement of a set radius
+initial_conformation: random_walk_z
+
+# ---- Tethers -----------------------------------------------------------------
+# [type, run length] pairs summing to num_monomers; type 1 = enhancer tether 255-260, type 2 = promoter tether 500-505
+monomer_type_list: [[0,255],[1,6],[0,239],[2,6],[0,251]]
+attraction_coefficient_matrix: [[0,0,0],[0,0,0],[0,0,0]]   # kT per pair, enhancer-promoter only
+
+# ---- Cohesin (1D loop extrusion) -----------------------------------------------
+num_cohesin: 2
+cohesin_speed: 1                 # monomers per arm per LE step
+cohesin_speed_sd: 0
+cohesin_bound_lifetime: 200   # mean LE steps bound
+cohesin_unbound_lifetime: 1      # mean LE steps before rebinding
+cohesin_stall_time: 1000         # an arm that meets another cohesin waits (cannot pass)
+cohesin_stall_probability: 1
+cohesin_collision: share_no_bypass
+extrusion_side: 2                # two-sided extrusion
+cohesin_loading_probability_list: null   # uniform loading
+
+# ---- Barriers: enhancer tether (260), CBS (261), promoter tether (505) ---------------
+ctcf_site_location_list: [260, 261, 505]
+ctcf_site_direction_list: ['both', 'both', 'both']
+ctcf_site_stall_probability_list: [0, 1, 0.3]
+ctcf_site_stall_time_list: [50, 100000, 50]   # tether barriers hold 50 LE steps; the CBS holds until unloading
+
+# ---- Run length and MD ---------------------------------------------------------
+num_LE_steps: 450
+num_LE_steps_init: 0
+num_MD_steps_per_LE: 500
+collision_rate: 0.03
+save_every_blocks: 1
+equilibrate_without_stickiness: true   # tether attraction off during minimisation and equilibration
+equilibration_timestep: 100000         # MD steps of equilibration
