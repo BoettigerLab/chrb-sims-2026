@@ -1,7 +1,7 @@
 # Full export (conda env export --no-builds) of the Windows environment the chrb manuscript simulations ran in
 # (Windows Server 2019, NVIDIA driver 497.09). It is a general-purpose lab environment: most packages are not
 # used by the simulation. For a new install use environment.yml in this folder. polychrom is not listed: it was
-# on the path as a source folder (see README_chrb_manuscript.md).
+# on the path as a source folder (see README.md).
 name: chrb-sims-as-run
 channels:
   - defaults

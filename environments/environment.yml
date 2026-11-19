@@ -4,7 +4,7 @@
 # Create:   conda env create -f environments/environment.yml
 # CUDA: conda-forge picks a cudatoolkit for openmm; the runs used cudatoolkit 10.2 (NVIDIA driver 497.09).
 #       If your driver is older than the toolkit chosen, add e.g. "cudatoolkit=10.2" below.
-# polychrom: put the polychrom source folder on PYTHONPATH (see README_chrb_manuscript.md); the simulation does
+# polychrom: put the polychrom source folder on PYTHONPATH (see README.md); the simulation does
 #       not use polychrom's compiled extension.
 name: chrb-sims
 channels:

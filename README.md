@@ -1,294 +1,91 @@
-# boettiger-livecell
+# Polymer simulations of loop extrusion and enhancer-promoter tethering
 
-Simulation engine for dynamic chromosome simulation powered by [OpenMM](https://openmm.org) and [Polychrom](https://github.com/open2c/polychrom).
+This repository holds the simulation code used for the polymer simulations of the chrb manuscript
+([citation]). It simulates a chromatin fibre as a bead-spring polymer in which loop-extruding cohesin and
+sticky tether elements act together. Cohesin moves along the chain in a one-dimensional lattice model, and the
+3D polymer is evolved by Langevin dynamics on the GPU between extrusion steps.
 
-**chrb manuscript:** the code, configs and environment used for the paper's simulations are described in
-[README_chrb_manuscript.md](README_chrb_manuscript.md).
+The code builds on the [polychrom](https://github.com/open2c/polychrom) polymer-simulation library of the
+Open2C community and its loop-extrusion examples, and runs on the GPU molecular dynamics toolkit
+[OpenMM](https://openmm.org). The simulations used polychrom 0.1.1 at commit `320f25e` (16 April 2025),
+unmodified. The lab copy of that version, with its history, is [lab polychrom repository].
 
-## Running Simulations
+The branch `chrb-manuscript` (tag `chrb-manuscript-version`) is the code as run for the paper, plus the
+example configs and environment files described below.
 
-### Boettiger Server
+## Organisation
 
-Run Anaconda Powershell Prompt **as administrator**. (`conda` requires admin access). Then activate `tee` virtual environment using the following command:
+| Path | Contents |
+|---|---|
+| `simulation/main.py` | Entry point. Reads one config, validates it, and runs every replicate: loop extrusion, then molecular dynamics. Writes `config_resolved.json` beside the output. |
+| `simulation/sim_config.py` | Every simulation setting, with its type, default and checks (pydantic model). Unknown keys are refused. |
+| `simulation/config_loader.py` | Loads a YAML or JSON config, applies `--overrides`, and refuses to reuse an output folder made with different settings. |
+| `simulation/run_sim_LE.py` | One-dimensional loop-extrusion model (numba): cohesin loading, two-sided extrusion, unloading, collisions between cohesins, and capture and hold at barrier sites. |
+| `simulation/run_sim.py` | Runs the loop-extrusion step for a replicate, samples it at the frames passed to the 3D simulation, and optionally plots it. |
+| `simulation/run_sim_MD.py` | Three-dimensional simulation with polychrom and OpenMM: chain bonds, bending stiffness, soft excluded volume, attraction between tether blocks, spherical confinement, and the cohesin bonds updated at each extrusion step. |
+| `simulation/md_backend_slurm.py` | Optional: submits the molecular dynamics to a SLURM cluster instead of running locally. |
+| `examples/chrb_manuscript/` | One config per condition simulated in the paper (below). |
+| `examples/simulation/`, `debug/` | General examples (Rouse chain, crumpled polymer with and without extrusion) and a debugging config; not used in the paper. |
+| `tests/` | Unit and integration tests (run with `pytest tests`). |
+| `tutorial/` | Notebook and MATLAB script for loading simulation output; not used in the paper. |
+| `environments/` | Conda environments (below). |
 
-```Powershell
-conda activate tee
+## Install
+
 ```
-
-If activation is successful, your Powershell Prompt should starts with `(tee)`:
-
-```Powershell
-(tee) PS: [directory]> 
+conda env create -f environments/environment.yml
+conda activate chrb-sims
+git clone <lab polychrom repository> polychrom
 ```
+Put the polychrom source folder on the Python path, as in the runs:
+- Windows (PowerShell): `$env:PYTHONPATH = "<path>\polychrom"`
+- Linux / macOS: `export PYTHONPATH=<path>/polychrom`
 
-Because this virtual environment contains all the required dependencies, we are ready to run simulation. Running simulation is very simple: you just pass the config file (`*.yaml`) that contains hyperparameters for the simulation to the main simulation driver `boettiger-livecell/main.py`. `main.py` will validate the validity of hyperparameters, coordinate LE and MD simulations, and output the results automatically. `main.py` accepts path to config file through `--config` flag.
+`pip install -e <path>/polychrom` also works where a C++ compiler is available. It builds an extension that the
+simulation does not use.
 
-To simulate Rouse polymer, run the following command:
+`environments/environment.yml` is a minimal conda-forge environment with the package versions the runs used
+(Python 3.8, OpenMM 8.0.0, numpy 1.24.3, scipy 1.10.1, h5py 3.9.0, pydantic 2.10.6; numba 0.58.1, the nearest
+conda-forge build to the 0.58.0 used). `environments/environment_as_run_windows.yml` is the full export of the
+Windows environment the runs used (Windows Server 2019, CUDA 10.2, NVIDIA driver 497.09). It is a general-purpose
+environment, and most of its packages are not used here.
 
-Server 2
+## Run
 
-```Powershell
-python "F:\Tee\boettiger-livecell\simulation\main.py" --config "F:\Tee\boettiger-livecell\examples\simulation\config_rouse_slurm.yaml"
 ```
-
-This will simulate 10 independent Rouse polymers and output it in folder indicated in `out_dir` parameter in the config file, which is `F:\Tee\LiveCellSimulation\Dataset\20251121_LiveCellSimulation` in this example.
-
-Anecdotally, this simulation should not take more than 20 minutes if your GPU does not share its resources with other GPU-intensive jobs.
-
-## Hyperparameters
-
-All parameters are defined using a config `yaml` file. More examples can be found [in this folder](https://github.com/tee-udon/boettiger_livecell/tree/main/examples/simulation).
-
-### Example for Rouse Polymer
-
-```yaml
-# Bookkeeping
-out_dir: /mnt/home/tudomlumleart/ceph/04_MitoticChromosome/dataset/simulations/20251121_LiveCellSimulation
-condition_name: RouseTest
-start_idx_replicate: 0
-
-# Number of independent replicates per run
-num_replicates: 1
-
-# Core loop extruion simulation hyperparameters
-num_monomers: 10000 # 10 Mb 
-
-# Cohesin-related parameters
-num_cohesin: 0 
-cohesin_speed: 1
-cohesin_speed_sd: 0
-cohesin_stall_time: 1
-cohesin_stall_probability: 1
-cohesin_bound_lifetime: 1
-cohesin_unbound_lifetime: 1
-extrusion_side: 2
-cohesin_loading_probability_list: null
-
-# CTCF-related parameters 
-ctcf_site_location_list: null
-ctcf_site_direction_list: null
-ctcf_site_stall_probability_list: null
-ctcf_site_stall_time_list: null
-
-# Number of LE steps
-num_LE_steps: 10000
-num_LE_steps_init: 0
-
-# MD simulation parameters
-monomer_type_list: null
-attraction_coefficient_matrix: null
-repulsion: 0
-equilibration_timestep: 100000 
-num_MD_steps_per_LE: 1000
-attraction_radius: 0 # 0 switches the nonbonded force off: no excluded volume, no stickiness. For either, use 1.5 and set attraction_energy (0 = only sticky regions attract)
-density: 0.24
-collision_rate: 0.03
-initial_conformation: random_walk
-
-# Plot for sanity check
-plot_LE: true 
-
-# backend 
-backend: local
-
-# slurm options - in case running on high-computing cluster
-slurm:
-  partition: gpu
-  time: "01:00:00"
-  gpus: "1"
-  cpus_per_task: 1
-  mem: "64G"
-  nodes: 1
-  ntasks: 1
-  env_setup: |
-    module load modules/2.3-20240529 cuda/12.3.2
-    conda activate py-hoomd2
-  python: python
-  wait: false
+python simulation/main.py --config examples/chrb_manuscript/config_WT.yaml
 ```
+- Output goes to `out_dir/condition_name/<replicate>/`. `all_conformations.npy` holds the 3D coordinates in
+  monomer diameters, shape (451, 757, 3): frame 0 is the end of equilibration, then one frame per
+  loop-extrusion step. `LEFPositions_0.h5` holds the cohesin positions.
+- Any setting can be changed on the command line, e.g.
+  `--overrides num_replicates=10 start_idx_replicate=0 gpu_device='"1"'`.
+- An interrupted run resumes from its last saved block when the same command is run again.
+- One 450-step replicate, including equilibration, takes about 2 min on an NVIDIA T1000.
 
-### Example for Crumpled polymer with Extrusion
+## Conditions simulated in the paper
 
-```yaml
-# Bookkeeping
-out_dir: /mnt/home/tudomlumleart/ceph/04_MitoticChromosome/dataset/simulations/20251121_LiveCellSimulation
-condition_name: CrumpledExtrusionTest 
-start_idx_replicate: 0
+Each config in `examples/chrb_manuscript/` is the base model with the change listed. Monomer positions are
+0-based; the enhancer readout is monomer 260 and the promoter readout monomer 504. In the paper one
+loop-extrusion step is 6 s, frame 0 is the start of nuclear cycle 14 and frame 450 is gastrulation.
 
-# Number of independent replicates per run
-num_replicates: 1
+| Config | Condition | Change from WT |
+|---|---|---|
+| `config_WT.yaml` | WT | none |
+| `config_dNIPBL.yaml` | ΔNIPBL | no cohesin |
+| `config_dCBS.yaml` | ΔCBS | CBS (monomer 261) capture probability 0 |
+| `config_dTether.yaml` | ΔTether | enhancer tether deleted: no attraction, no barrier at 260 |
+| `config_dTether_dNIPBL.yaml` | ΔTether + ΔNIPBL | no cohesin, no attraction |
+| `config_wapl.yaml` | wapl²/+ | cohesin bound lifetime 200 steps |
+| `config_wapl_dCBS.yaml` | wapl²/+ ΔCBS | both changes |
+| `config_wapl_dTether.yaml` | wapl²/+ ΔTether | both changes |
 
-# Core loop extruion simulation hyperparameters
-num_monomers: 10000 # 10 Mb 
+Each example config loads to the same simulation settings as the config used for the paper's runs. Only the
+bookkeeping fields (output folder, condition name, number of replicates, GPU, plotting) differ. The ΔTether +
+ΔNIPBL runs used a config with other values in the barrier and sticky-block fields; with no cohesin and no
+attraction these have no effect.
 
-# Cohesin-related parameters
-num_cohesin: 100
-cohesin_speed: 1
-cohesin_speed_sd: 0
-cohesin_stall_time: 10
-cohesin_stall_probability: 1
-cohesin_bound_lifetime: 1000
-cohesin_unbound_lifetime: 1
-extrusion_side: 2
-cohesin_loading_probability_list: null
+## Licence and credit
 
-# CTCF-related parameters 
-ctcf_site_location_list: [4000, 6000]
-ctcf_site_direction_list: ['right', 'left']
-ctcf_site_stall_probability_list: [1, 1]
-ctcf_site_stall_time_list: [100000, 100000]
-
-# Number of LE steps
-num_LE_steps: 10000
-num_LE_steps_init: 0
-
-# MD simulation parameters
-monomer_type_list: null
-attraction_coefficient_matrix: null
-repulsion: 1
-equilibration_timestep: 100000 
-num_MD_steps_per_LE: 100
-attraction_radius: 0 # 0 switches the nonbonded force off: no excluded volume, no stickiness. For either, use 1.5 and set attraction_energy (0 = only sticky regions attract)
-density: 0.24
-collision_rate: 0.03
-initial_conformation: crumpled
-PBC_box: False # Adding PBC_box and spherical confinement can crash fail the energy minimization process 
-confinement: spherical 
-
-# Plot for sanity check
-plot_LE: true 
-
-# backend 
-backend: local
-
-# slurm options
-slurm:
-  partition: gpu
-  time: "01:00:00"
-  gpus: "1"
-  cpus_per_task: 1
-  mem: "64G"
-  nodes: 1
-  ntasks: 1
-  env_setup: |
-    module load modules/2.3-20240529 cuda/12.3.2
-    conda activate py-hoomd2
-  python: python
-  wait: false
-```
-
-### Simulation Configuration (`SimConfig`)
-
-### General Settings
-
-| Name                  | Type  | Default  | Constraints | Description                                  |
-| --------------------- | ----- | -------- | ----------- | -------------------------------------------- |
-| `num_replicates`      | `int` | `1`      | `>= 1`      | Number of independent replicates per run.    |
-| `out_dir`             | `str` | `"runs"` | –           | Output directory for all runs.               |
-| `condition_name`      | `str` | `""`     | –           | Optional label for the simulation condition. |
-| `start_idx_replicate` | `int` | `0`      | –           | Starting index for replicate numbering.      |
-
-### Loop Extrusion (LE) Parameters
-
-| Name                               | Type           | Default  | Constraints                   | Description                                                                         |
-| ---------------------------------- | -------------- | -------- | ----------------------------- | ----------------------------------------------------------------------------------- |
-| `num_monomers`                     | `int`          | `100000` | `> 0`                         | Number of monomers (~1 kb per monomer).                                             |
-| `cohesin_speed`                    | `float`        | `1.0`    | `>= 1`                        | Cohesin speed (monomers per timestep).                                              |
-| `cohesin_speed_sd`                 | `float`        | `0.0`    | `>= 0`                        | Std. deviation of cohesin speed.                                                    |
-| `cohesin_stall_time`               | `float`        | `1.0`    | `>= 1`                        | Expected timesteps for cohesin stall on collision.                                  |
-| `cohesin_stall_probability`        | `float`        | `1.0`    | `0 ≤ p ≤ 1`                   | Probability of stall on collision.                                                  |
-| `num_cohesin`                      | `int`          | `1000`   | `>= 0`                        | Number of cohesin molecules.                                                        |
-| `cohesin_bound_lifetime`           | `float`        | `100000` | `>= 1`                        | Expected lifetime of bound cohesin.                                                 |
-| `cohesin_unbound_lifetime`         | `float`        | `1`      | `>= 1`                        | Expected lifetime of unbound cohesin.                                               |
-| `extrusion_side`                   | `Literal[1,2]` | `2`      | –                             | `1` = unidirectional, `2` = bidirectional extrusion.                                |
-| `num_LE_steps`                     | `int`          | `1800`   | `>= 0`                        | Total number of LE steps (default ≈ 1800 frames).                                        |
-| `num_LE_steps_init`                | `int`          | `0`      | `>= 0`                        | LE steps run before exporting (for steady state).                                   |
-| `cohesin_loading_probability_list` | `List[float]?` \| `List[(float, int)]?` | `null`   | If `None`, loading is uniform (`1 / num_monomers` at each site). If given as `List[float]`, the list length **must equal** `num_monomers` and the values **must sum to 1** (within numerical tolerance). If given as `List[(weight, count)]`, the expanded length **must equal** `num_monomers`; weights are automatically normalized to sum to 1.| Defines the spatial probability distribution for cohesin loading along the polymer. Can be specified per monomer or as weighted blocks that are expanded internally and normalized. |
-
-### CTCF Site Parameters
-
-| Name                               | Type                           | Default | Constraints                | Description                                                                                    |
-| ---------------------------------- | ------------------------------ | ------- | -------------------------- | ---------------------------------------------------------------------------------------------- |
-| `ctcf_site_location_list`          | `list[int]?`                   | `null`  | `0 ≤ i < num_monomers`     | Locations of CTCF sites along the genome.                                                      |
-| `ctcf_site_direction_list`         | `list["left","right","both"]?` | `null`  | len = number of CTCF sites | Direction of each CTCF site. If `null`, all are `"both"`.                                      |
-| `ctcf_site_stall_probability_list` | `list[float]?`                 | `null`  | `0 ≤ p ≤ 1`                | Stall probability for each CTCF site. If `null`, all are 1.                                    |
-| `ctcf_site_stall_time_list`        | `list[float]?`                 | `null`  | `>= 1`                     | Expected stall time for each CTCF site. If `null`, very large value is used (permanent stall). |
-
-### Molecular Dynamics (MD) Parameters
-
-| Name                            | Type                                             | Default      | Constraints          | Description                                                              |
-| ------------------------------- | ------------------------------------------------ | ------------ | -------------------- | ------------------------------------------------------------------------ |
-| `monomer_type_list`             | `List[int]?` \| `List[[int, int]]?`                                  | `null`       | If `None`, the list is automatically set to all zeros with length `num_monomers`. If given as `List[int]`, the list length **must equal** `num_monomers`. If given as `List[[monomer_type, count]]`, the sum of all `count` values **must equal** `num_monomers` after expansion. | Specifies the monomer type at each position along the polymer. These types index into the attraction coefficient matrix to control inter-monomer interactions. If not provided, the polymer is assumed to be a homopolymer with all monomers of type `0`.|
-| `attraction_coefficient_matrix` | `list[list[float]]?`                             | `null`       | square, symmetric; types numbered 0, 1, 2, ... without gaps | Extra attraction between monomer types, in kT per contact: the sticky regions. If `null`, nothing is sticky. Nonzero entries need `attraction_radius` above 1.0. |
-| `repulsion`                     | `float`                                          | `5.0`        | `>= 0`               | Repulsion constant between monomers.                                     |
-| `equilibration_timestep`        | `int`                                            | `1500`       | `>= 1`               | MD timesteps used to relax the initial conformation.                     |
-| `equilibrate_without_stickiness` | `bool`                                          | `false`      | –                    | Switch the sticky-region attraction (`attraction_coefficient_matrix`) off for energy minimization and equilibration, and back on before the first loop-extrusion step, so the start carries no stickiness bias (e.g. a pre-formed tether). The uniform `attraction_energy` and excluded volume stay on. |
-| `num_MD_steps_per_LE`           | `int`                                            | `1000`       | `>= 1`               | MD timesteps between LE updates.                                         |
-| `attraction_radius`             | `float`                                          | `0`          | `0` or `> 1.0`       | Range of the attraction, in bond lengths. Also the nonbonded cutoff: `0` switches the nonbonded force off entirely (no excluded volume, no stickiness); `1.5` is standard. Above 1.0, `attraction_energy` must be set explicitly. |
-| `attraction_energy`             | `float`                                          | `3.0`        | `>= 0`; required when `attraction_radius > 1.0` | Uniform attraction between **every** pair of monomers, in kT. `0` gives excluded volume plus only the sticky regions. The 3 kT default collapses the chain and typically stops the run with `EKExceedsError`, so a config that switches the attraction on must choose a value. |
-| `angle_k`                       | `float`                                          | `1.5`        | `>= 0`               | Bending stiffness. 1.5 is flexible, 8 is stiff.                          |
-| `save_every_blocks`             | `int`                                            | `1`          | `>= 1`; must divide `num_LE_steps` | Save positions every Nth loop-extrusion step. Frame 0 is the end of setup; frame k is LE step k × `save_every_blocks`. |
-| `density`                       | `float`                                          | `0.24`       | `0 < density ≤ 1`    | Initial polymer density relative to the enclosing box.                   |
-| `collision_rate`                | `float`                                          | `0.03`       | `> 0`                | Rate of monomer–monomer collisions.                                      |
-| `smc_bond_dist`                 | `float`                                          | `0.5`        | `> 0`                | Mean bond length between condensin arms.                                 |
-| `smc_bond_wiggle_dist`          | `float`                                          | `0.2`        | `> 0`                | Std. deviation of condensin bond length.                                 |
-| `gpu_device`                    | `str`                                            | `"0"`        | –                    | GPU device used for the MD simulation.                                   |
-| `initial_conformation`          | `"random_walk" \| "random_walk_z" \| "crumpled"` | `"crumpled"` | –                    | Initial polymer conformation.                                            |
-| `confinement`                   | `"spherical"?`                                   | `null`       | –                    | Confinement geometry.                                                    |
-| `PBC_box`                       | `bool`                                           | `false`      | –                    | Enable periodic boundary conditions. |
-
-### Backend
-
-| Name      | Type                 | Default   | Description                                           |
-| --------- | -------------------- | --------- | ----------------------------------------------------- |
-| `backend` | `"local" \| "slurm"` | `"local"` | Execution backend.                                    |
-| `slurm`   | `SlurmCfg?`          | `null`    | SLURM configuration (only used if `backend="slurm"`). |
-
-### Slurm Configuration (`SlurmCfg`)
-
-Used only when `backend="slurm"`.
-
-| Name               | Type        | Default      | Description                                                       |
-| ------------------ | ----------- | ------------ | ----------------------------------------------------------------- |
-| `partition`        | `str`       | `"gpu"`      | SLURM partition to submit jobs to.                                |
-| `account`          | `str?`      | `null`       | SLURM account name, if required.                                  |
-| `time`             | `str`       | `"00:30:00"` | Walltime limit in `HH:MM:SS` format.                              |
-| `gpus`             | `str`       | `"1"`        | GPU request, e.g. `"1"` or `"a100:1"`.                            |
-| `cpus_per_task`    | `int`       | `1`          | Number of CPUs per task.                                          |
-| `mem`              | `str?`      | `"64G"`      | Memory request, e.g. `"16G"`.                                     |
-| `qos`              | `str?`      | `null`       | SLURM QoS if applicable.                                          |
-| `nodes`            | `int`       | `1`          | Number of nodes.                                                  |
-| `ntasks`           | `int`       | `1`          | Number of tasks.                                                  |
-| `constraint`       | `str?`      | `null`       | Node constraints (e.g. `"a100"`).                                 |
-| `chdir_to_run_dir` | `bool`      | `true`       | Change working directory to the run directory before execution.   |
-| `extra_sbatch`     | `list[str]` | `[]`         | Extra raw `#SBATCH` lines (e.g. `["#SBATCH --exclusive"]`).       |
-| `env_setup`        | `str?`      | `null`       | Shell commands for environment setup (modules, conda, etc.).      |
-| `python`           | `str`       | `"python"`   | Python interpreter used inside the job.                           |
-| `wait`             | `bool`      | `true`       | If `true`, block until the job finishes (polls `squeue`/`sacct`). |
-
-### Plotting
-
-| Name      | Type   | Default | Description                                    |
-| --------- | ------ | ------- | ---------------------------------------------- |
-| `plot_LE` | `bool` | `true`  | Plot LE simulation result for sanity checking. |
-
-### Automatic Defaults & Validation
-
-The following parameters are automatically generated if not provided:
-
-- `monomer_type_list`: initialized to all zeros.
-- `attraction_coefficient_matrix`: initialized to a zero matrix.
-- `cohesin_loading_probability_list`: uniform distribution over monomers.
-- `ctcf_site_direction_list`: defaults to "both" for all sites.
-- `ctcf_site_stall_probability_list`: defaults to 1 for all sites.
-- `ctcf_site_stall_time_list`: defaults to a very large value.
-
-All lists are strictly validated for correct lengths and physical constraints.
-
-## Acknowledgements
-
-This codebase stands on the shoulders of giants, including the following:
-
-Beckwith, K. S., Brunner, A., Morero, N. R., Jungmann, R., & Ellenberg, J. (2025). Nanoscale DNA tracing reveals the self-organization mechanism of mitotic chromosomes. Cell, 188(10). https://doi.org/10.1016/j.cell.2025.02.028  
-
-https://github.com/open2c/polychrom 
+`simulation/run_sim_MD.py` is adapted from the polychrom examples and is distributed under polychrom's MIT
+licence, reproduced in its header. Code by Tee Udomlumleart and the Boettiger lab, Stanford University.
