@@ -87,5 +87,5 @@ attraction these have no effect.
 
 ## Licence and credit
 
-`simulation/run_sim_MD.py` is adapted from the polychrom examples and is distributed under polychrom's MIT
+The repository is distributed under the MIT licence (`LICENSE`). `simulation/run_sim_MD.py` is adapted from the polychrom examples and is distributed under polychrom's MIT
 licence, reproduced in its header. Code by Tee Udomlumleart and the Boettiger lab, Stanford University.
