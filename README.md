@@ -1,14 +1,16 @@
 # Polymer simulations of loop extrusion and enhancer-promoter tethering
 
-This repository holds the simulation code used for the polymer simulations of the chrb manuscript
-([citation]). It simulates a chromatin fibre as a bead-spring polymer in which loop-extruding cohesin and
+This repository holds the simulation code used for the polymer simulations of the chrb manuscript. 
+(We will link the manuscript here when it appears on BioRxiv).
+
+ It simulates a chromatin fibre as a bead-spring polymer in which loop-extruding cohesin and
 sticky tether elements act together. Cohesin moves along the chain in a one-dimensional lattice model, and the
 3D polymer is evolved by Langevin dynamics on the GPU between extrusion steps.
 
 The code builds on the [polychrom](https://github.com/open2c/polychrom) polymer-simulation library of the
 Open2C community and its loop-extrusion examples, and runs on the GPU molecular dynamics toolkit
 [OpenMM](https://openmm.org). The simulations used polychrom 0.1.1 at commit `320f25e` (16 April 2025),
-unmodified. The lab copy of that version, with its history, is [lab polychrom repository].
+unmodified. The lab copy of that version, with its history, is [polymer-dynamics](https://github.com/BoettigerLab/polymer-dynamics).
 
 The branch `chrb-manuscript` (tag `chrb-manuscript-version`) is the code as run for the paper, plus the
 example configs and environment files described below.
@@ -35,7 +37,7 @@ example configs and environment files described below.
 ```
 conda env create -f environments/environment.yml
 conda activate chrb-sims
-git clone <lab polychrom repository> polychrom
+git clone https://github.com/BoettigerLab/polymer-dynamics.git polychrom
 ```
 Put the polychrom source folder on the Python path, as in the runs:
 - Windows (PowerShell): `$env:PYTHONPATH = "<path>\polychrom"`
